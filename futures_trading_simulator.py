@@ -1,30 +1,29 @@
 import streamlit as st
 import pandas as pd
 import random
-import numpy as np
 
 # Streamlit app setup
-st.title("Futures Trading Session Simulator with Risk Optimization")
+st.title("Futures Trading Session Simulator with Capital Growth, Looping, and Commissions")
 
 # User inputs
 starting_capital = st.number_input("Starting Capital ($)", min_value=100.0, value=5000.0, step=100.0)
 win_percentage = st.slider("Win Percentage (%)", min_value=0, max_value=100, value=50)
+amount_risked = st.number_input("Amount Risked per Trade ($)", min_value=1.0, value=100.0, step=10.0)
 risk_reward_ratio = st.number_input("Risk/Reward Ratio", min_value=0.1, value=2.0, step=0.1)
 max_drawdown = st.number_input("Max Drawdown ($)", min_value=1.0, value=2500.0, step=100.0)
 capital_growth_goal = st.number_input("Capital Growth Goal ($)", min_value=100.0, value=8000.0, step=100.0)
 trade_commission = st.number_input("Trade Commission ($)", min_value=0.0, value=5.0, step=0.5)
-loop_simulations = st.number_input("Number of Simulations (for Loop Mode or Optimization)", min_value=1, value=500, step=1)
+loop_simulations = st.number_input("Number of Simulations (for Loop Mode)", min_value=1, value=1, step=1)
 
-# Toggle between standard simulation and optimization
-optimize_risk = st.checkbox("Optimize Risk Amount")
-
+# Run simulation button
 if st.button("Run Simulation"):
-    def run_single_simulation(amount_risked):
-        """Runs a single simulation with a specified risk amount."""
+    def run_single_simulation(return_detailed_data=False):
+        """Runs a single simulation and returns the number of trades to hit target or max drawdown."""
         capital = starting_capital
         max_capital = starting_capital
         min_capital_balance = starting_capital - max_drawdown
         trades = 0
+        trade_data = []  # For detailed output if needed
         
         while capital < capital_growth_goal and capital >= min_capital_balance:
             trades += 1
@@ -39,63 +38,43 @@ if st.button("Run Simulation"):
                 max_capital = capital
                 min_capital_balance = max_capital - max_drawdown
 
+            # Record trade details
+            if return_detailed_data:
+                trade_data.append({
+                    "Trade Number": trades,
+                    "Result": "Win" if win else "Loss",
+                    "Change ($)": trade_result,
+                    "Running Capital ($)": capital,
+                    "Max Capital ($)": max_capital,
+                    "Min Capital Balance ($)": min_capital_balance
+                })
+
         # Determine outcome
         outcome = "Target Achieved" if capital >= capital_growth_goal else "Max Drawdown Hit"
-        return trades, outcome
+        return (trades, outcome, trade_data) if return_detailed_data else (trades, outcome)
 
-    if optimize_risk:
-        # Optimization mode
-        st.subheader("Risk Optimization")
-        
-        # Range of risk amounts to test
-        risk_values = np.linspace(1, starting_capital * 0.2, 50)  # Test risks from $1 to 20% of starting capital
-        avg_trades_to_target = []
-        avg_trades_to_drawdown = []
+    # If only one simulation is selected
+    if loop_simulations == 1:
+        trades, outcome, trade_data = run_single_simulation(return_detailed_data=True)
+        st.subheader("Simulation Result")
+        st.write(f"Outcome: {outcome}")
+        st.write(f"Number of Trades: {trades}")
 
-        for amount_risked in risk_values:
-            total_trades_to_target = 0
-            total_trades_to_drawdown = 0
-            target_hits = 0
-            drawdown_hits = 0
-
-            for _ in range(loop_simulations):
-                trades, outcome = run_single_simulation(amount_risked)
-                if outcome == "Target Achieved":
-                    total_trades_to_target += trades
-                    target_hits += 1
-                else:
-                    total_trades_to_drawdown += trades
-                    drawdown_hits += 1
-
-            # Calculate average trades for this risk amount
-            avg_to_target = total_trades_to_target / target_hits if target_hits > 0 else float('inf')
-            avg_to_drawdown = total_trades_to_drawdown / drawdown_hits if drawdown_hits > 0 else float('inf')
-
-            avg_trades_to_target.append(avg_to_target)
-            avg_trades_to_drawdown.append(avg_to_drawdown)
-
-        # Display results
-        optimal_risk = risk_values[np.argmin(avg_trades_to_target)]
-        st.write(f"Optimal Risk Amount: ${optimal_risk:.2f}")
-        st.write(f"Average Trades to Target with Optimal Risk: {min(avg_trades_to_target):.2f} trades")
-
-        # Plot results
-        st.subheader("Risk vs. Average Trades")
-        risk_df = pd.DataFrame({
-            "Risk Amount ($)": risk_values,
-            "Avg Trades to Target": avg_trades_to_target,
-            "Avg Trades to Drawdown": avg_trades_to_drawdown
-        })
-        st.line_chart(risk_df.set_index("Risk Amount ($)"))
+        # Display individual trades as a chart
+        results_df = pd.DataFrame(trade_data)
+        st.subheader("Trade Data")
+        st.dataframe(results_df)
+        st.subheader("Capital Progression")
+        st.line_chart(results_df["Running Capital ($)"])
     else:
-        # Standard simulation mode
+        # Run multiple simulations
         total_trades_to_target = 0
         total_trades_to_drawdown = 0
         target_hits = 0
         drawdown_hits = 0
 
         for _ in range(loop_simulations):
-            trades, outcome = run_single_simulation(100)  # Default risk for standard simulation
+            trades, outcome = run_single_simulation()
             if outcome == "Target Achieved":
                 total_trades_to_target += trades
                 target_hits += 1
