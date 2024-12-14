@@ -3,70 +3,72 @@ import pandas as pd
 import random
 
 # Streamlit app setup
-st.title("Futures Trading Session Simulator with Max Drawdown")
+st.title("Futures Trading Session Simulator with Capital Growth and Looping")
 
 # User inputs
 starting_capital = st.number_input("Starting Capital ($)", min_value=100.0, value=5000.0, step=100.0)
 win_percentage = st.slider("Win Percentage (%)", min_value=0, max_value=100, value=50)
 amount_risked = st.number_input("Amount Risked per Trade ($)", min_value=1.0, value=100.0, step=10.0)
 risk_reward_ratio = st.number_input("Risk/Reward Ratio", min_value=0.1, value=2.0, step=0.1)
-number_of_trades = st.number_input("Number of Trades", min_value=1, value=30, step=1)
 max_drawdown = st.number_input("Max Drawdown ($)", min_value=1.0, value=2500.0, step=100.0)
+capital_growth_goal = st.number_input("Capital Growth Goal ($)", min_value=100.0, value=8000.0, step=100.0)
+loop_simulations = st.number_input("Number of Simulations (for Loop Mode)", min_value=1, value=1, step=1)
 
+# Run simulation button
 if st.button("Run Simulation"):
-    # Initialize variables
-    capital = starting_capital
-    trades = []
-    stopped = False
+    def run_single_simulation():
+        """Runs a single simulation and returns the number of trades to hit target or max drawdown."""
+        capital = starting_capital
+        max_capital = starting_capital
+        min_capital_balance = starting_capital - max_drawdown
+        trades = 0
+        
+        while capital < capital_growth_goal and capital >= min_capital_balance:
+            trades += 1
+            # Determine win or loss
+            win = random.random() < (win_percentage / 100)
+            trade_result = amount_risked * risk_reward_ratio if win else -amount_risked
+            capital += trade_result
+            
+            # Update max capital and recalculate min allowed balance
+            if capital > max_capital:
+                max_capital = capital
+                min_capital_balance = max_capital - max_drawdown
 
-    # Tracking max capital and minimum allowed balance
-    max_capital = starting_capital
-    min_capital_balance = starting_capital - max_drawdown
+        # Return the outcome and the number of trades
+        outcome = "Target Achieved" if capital >= capital_growth_goal else "Max Drawdown Hit"
+        return trades, outcome
 
-    for trade_num in range(1, number_of_trades + 1):
-        # Stop simulation if capital falls below the minimum allowed balance
-        if capital < min_capital_balance:
-            stopped = True
-            st.warning("Trading session stopped: Capital balance fell below the minimum allowed balance.")
-            break
+    # If only one simulation is selected
+    if loop_simulations == 1:
+        trades, outcome = run_single_simulation()
+        st.subheader("Simulation Result")
+        st.write(f"Outcome: {outcome}")
+        st.write(f"Number of Trades: {trades}")
+    else:
+        # Run multiple simulations
+        total_trades_to_target = 0
+        total_trades_to_drawdown = 0
+        target_hits = 0
+        drawdown_hits = 0
 
-        # Determine if the trade is a win or a loss
-        win = random.random() < (win_percentage / 100)
-        trade_result = amount_risked * risk_reward_ratio if win else -amount_risked
-        capital += trade_result
+        for _ in range(loop_simulations):
+            trades, outcome = run_single_simulation()
+            if outcome == "Target Achieved":
+                total_trades_to_target += trades
+                target_hits += 1
+            else:
+                total_trades_to_drawdown += trades
+                drawdown_hits += 1
 
-        # Update max capital and recalculate min allowed balance
-        if capital > max_capital:
-            max_capital = capital
-            min_capital_balance = max_capital - max_drawdown
+        # Calculate averages
+        avg_trades_to_target = total_trades_to_target / target_hits if target_hits > 0 else 0
+        avg_trades_to_drawdown = total_trades_to_drawdown / drawdown_hits if drawdown_hits > 0 else 0
 
-        # Record trade details
-        trades.append({
-            "Trade Number": trade_num,
-            "Result": "Win" if win else "Loss",
-            "Change ($)": trade_result,
-            "Running Capital ($)": capital,
-            "Max Capital ($)": max_capital,
-            "Min Capital Balance ($)": min_capital_balance
-        })
-
-    # Convert to DataFrame for display
-    results_df = pd.DataFrame(trades)
-
-    # Display results
-    st.subheader("Simulation Results")
-    st.dataframe(results_df)
-
-    # Display summary
-    st.subheader("Summary")
-    final_capital = trades[-1]["Running Capital ($)"] if trades else starting_capital
-    st.write(f"Final Capital: ${final_capital:.2f}")
-    st.write(f"Net Change: ${final_capital - starting_capital:.2f}")
-    st.write(f"Trades Executed: {len(trades)}")
-    st.write(f"Max Capital Reached: ${max_capital:.2f}")
-    st.write(f"Final Min Allowed Balance: ${min_capital_balance:.2f}")
-    
-    # Plot capital progression
-    if not results_df.empty:
-        st.subheader("Capital Progression")
-        st.line_chart(results_df["Running Capital ($)"])
+        # Display summary
+        st.subheader("Loop Simulation Summary")
+        st.write(f"Total Simulations: {loop_simulations}")
+        st.write(f"Target Achieved: {target_hits} times")
+        st.write(f"Max Drawdown Hit: {drawdown_hits} times")
+        st.write(f"Average Trades to Target: {avg_trades_to_target:.2f} trades")
+        st.write(f"Average Trades to Max Drawdown: {avg_trades_to_drawdown:.2f} trades")
