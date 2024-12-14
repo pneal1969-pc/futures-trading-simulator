@@ -3,7 +3,7 @@ import pandas as pd
 import random
 
 # Streamlit app setup
-st.title("Futures Trading Session Simulator with Capital Growth and Looping")
+st.title("Futures Trading Session Simulator with Capital Growth, Looping, and Commissions")
 
 # User inputs
 starting_capital = st.number_input("Starting Capital ($)", min_value=100.0, value=5000.0, step=100.0)
@@ -12,6 +12,7 @@ amount_risked = st.number_input("Amount Risked per Trade ($)", min_value=1.0, va
 risk_reward_ratio = st.number_input("Risk/Reward Ratio", min_value=0.1, value=2.0, step=0.1)
 max_drawdown = st.number_input("Max Drawdown ($)", min_value=1.0, value=2500.0, step=100.0)
 capital_growth_goal = st.number_input("Capital Growth Goal ($)", min_value=100.0, value=8000.0, step=100.0)
+trade_commission = st.number_input("Trade Commission ($)", min_value=0.0, value=5.0, step=0.5)
 loop_simulations = st.number_input("Number of Simulations (for Loop Mode)", min_value=1, value=1, step=1)
 
 # Run simulation button
@@ -29,6 +30,7 @@ if st.button("Run Simulation"):
             # Determine win or loss
             win = random.random() < (win_percentage / 100)
             trade_result = amount_risked * risk_reward_ratio if win else -amount_risked
+            trade_result -= trade_commission  # Subtract commission
             capital += trade_result
 
             # Update max capital and recalculate min allowed balance
