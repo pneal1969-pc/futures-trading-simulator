@@ -3,7 +3,7 @@ import pandas as pd
 import random
 
 # Streamlit app setup
-st.title("Futures Trading Session Simulator with Capital Growth, Looping, and Commissions")
+st.title("Futures Trading Session Simulator with Capital Growth, Looping, and Fixed Trades Option")
 
 # User inputs
 starting_capital = st.number_input("Starting Capital ($)", min_value=100.0, value=5000.0, step=100.0)
@@ -15,17 +15,23 @@ capital_growth_goal = st.number_input("Capital Growth Goal ($)", min_value=100.0
 trade_commission = st.number_input("Trade Commission ($)", min_value=0.0, value=5.0, step=0.5)
 loop_simulations = st.number_input("Number of Simulations (for Loop Mode)", min_value=1, value=1, step=1)
 
+# Toggle between stopping at the goal or running a fixed number of trades
+use_fixed_trades = st.checkbox("Use Fixed Number of Trades")
+if use_fixed_trades:
+    fixed_number_of_trades = st.number_input("Total Number of Trades", min_value=1, value=100, step=1)
+
 # Run simulation button
 if st.button("Run Simulation"):
-    def run_single_simulation(return_detailed_data=False):
-        """Runs a single simulation and returns the number of trades to hit target or max drawdown."""
+    def run_single_simulation():
+        """Runs a single simulation and calculates results."""
         capital = starting_capital
         max_capital = starting_capital
         min_capital_balance = starting_capital - max_drawdown
         trades = 0
-        trade_data = []  # For detailed output if needed
-        
-        while capital < capital_growth_goal and capital >= min_capital_balance:
+        trade_data = []
+
+        while (not use_fixed_trades and capital < capital_growth_goal and capital >= min_capital_balance) or \
+              (use_fixed_trades and trades < fixed_number_of_trades):
             trades += 1
             # Determine win or loss
             win = random.random() < (win_percentage / 100)
@@ -39,23 +45,22 @@ if st.button("Run Simulation"):
                 min_capital_balance = max_capital - max_drawdown
 
             # Record trade details
-            if return_detailed_data:
-                trade_data.append({
-                    "Trade Number": trades,
-                    "Result": "Win" if win else "Loss",
-                    "Change ($)": trade_result,
-                    "Running Capital ($)": capital,
-                    "Max Capital ($)": max_capital,
-                    "Min Capital Balance ($)": min_capital_balance
-                })
+            trade_data.append({
+                "Trade Number": trades,
+                "Result": "Win" if win else "Loss",
+                "Change ($)": trade_result,
+                "Running Capital ($)": capital,
+                "Max Capital ($)": max_capital,
+                "Min Capital Balance ($)": min_capital_balance
+            })
 
         # Determine outcome
         outcome = "Target Achieved" if capital >= capital_growth_goal else "Max Drawdown Hit"
-        return (trades, outcome, trade_data) if return_detailed_data else (trades, outcome)
+        return trades, outcome, trade_data
 
-    # If only one simulation is selected
     if loop_simulations == 1:
-        trades, outcome, trade_data = run_single_simulation(return_detailed_data=True)
+        # Single simulation mode
+        trades, outcome, trade_data = run_single_simulation()
         st.subheader("Simulation Result")
         st.write(f"Outcome: {outcome}")
         st.write(f"Number of Trades: {trades}")
@@ -67,14 +72,14 @@ if st.button("Run Simulation"):
         st.subheader("Capital Progression")
         st.line_chart(results_df["Running Capital ($)"])
     else:
-        # Run multiple simulations
+        # Loop mode for multiple simulations
         total_trades_to_target = 0
         total_trades_to_drawdown = 0
         target_hits = 0
         drawdown_hits = 0
 
         for _ in range(loop_simulations):
-            trades, outcome = run_single_simulation()
+            trades, outcome, _ = run_single_simulation()
             if outcome == "Target Achieved":
                 total_trades_to_target += trades
                 target_hits += 1
